@@ -1,0 +1,55 @@
+.app {
+  width: 100%;
+  max-width: 375px;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-image: url('./assets/home/image 1.webp');
+  background-size: 100% 100%;
+  background-position: top center;
+  background-repeat: repeat-y;
+  background-color: transparent;
+  margin: 0 auto;
+}
+
+/* 桌面端显示优化 - 居中显示并添加阴影 */
+@media (min-width: 376px) {
+  body {
+    background: #f0f0f0;
+  }
+  
+  #root {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+  }
+  
+  .app {
+    max-width: 375px;
+  }
+}
+
+/* 移动端自适应 */
+@media (max-width: 375px) {
+  .app {
+    max-width: 100vw;
+  }
+}
+
+/* 全局样式重置 */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

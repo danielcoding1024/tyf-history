@@ -1,0 +1,250 @@
+.home-page {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  background: transparent;
+}
+
+.home-background {
+  width: 100%;
+  min-height: 100vh;
+  background: transparent;
+  overflow-y: auto;
+}
+
+.home-content {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 32px 12px 20px 12px;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 0 8px 0;
+  margin-top: -8px;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+}
+
+.home-header > h1 {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  width: 100%;
+}
+
+.home-language-switch-container {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 8px 12px 0 12px;
+  margin-bottom: 0;
+}
+
+.home-title-image {
+  width: 100%;
+  max-width: 351px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.home-main-image {
+  width: 100%;
+  margin: 0 0 8px 0;
+}
+
+.home-main-image img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.home-read-book {
+  width: 100%;
+  padding: 10px 16px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 6px;
+  margin: 8px 0;
+  cursor: pointer;
+  transition: all 0.3s;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+}
+
+.home-read-book:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.read-book-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding-left: 8px;
+}
+
+/* Breathing animation样式在BreathingAnimation.css中定义，这里不覆盖 */
+
+.book-icon {
+  width: 40px;
+  height: 18px;
+  object-fit: contain;
+  display: block;
+  vertical-align: middle;
+}
+
+.read-book-text {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: #d8c3ae;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.home-question-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.home-question-button {
+  flex: 1;
+  padding: 16px 20px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: left;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  background-color: transparent;
+}
+
+.home-question-button:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.home-question-icon {
+  cursor: pointer;
+  transition: transform 0.3s;
+  width: 100px;
+  height: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.home-question-icon:hover {
+  transform: scale(1.05);
+}
+
+.home-timeline {
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.timeline-title {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: #d8c3ae;
+  margin: 0 0 8px 0;
+  text-align: center;
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.5),
+    1px 1px 2px rgba(216, 195, 174, 0.8),
+    0 0 10px rgba(216, 195, 174, 0.4);
+  letter-spacing: 2px;
+  font-style: normal;
+}
+
+.timeline-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  padding-top: 32px;
+}
+
+.timeline-content::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  z-index: 0;
+}
+
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+  transition: transform 0.3s;
+  min-width: 0;
+}
+
+.timeline-item:hover {
+  transform: translateY(-5px);
+}
+
+.timeline-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.timeline-item span {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: #d8c3ae;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  line-height: 1.2;
+}

@@ -1,0 +1,133 @@
+.cover-page {
+  width: 100%;
+  min-height: auto;
+  position: relative;
+  background: transparent;
+}
+
+.cover-background {
+  width: 100%;
+  min-height: auto;
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.cover-content {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: auto;
+  position: relative;
+  padding-bottom: 40px;
+}
+
+.cover-header {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px 0 20px;
+  position: relative;
+  z-index: 10;
+  gap: 12px;
+}
+
+.cover-title-image {
+  width: 100%;
+  max-width: 335px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  flex: 1;
+}
+
+.cover-header > .language-switch {
+  display: none;
+}
+
+.cover-main {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  margin: 12px 0 16px 0;
+  position: relative;
+}
+
+.cover-main > .language-switch {
+  margin: 10px 20px 0 0;
+  align-self: flex-end;
+}
+
+.cover-building-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.cover-building {
+  width: 100%;
+  max-width: 375px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+}
+
+.cover-description {
+  width: 100%;
+  text-align: center;
+  margin-top: 16px;
+  margin-bottom: 12px;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: #d8c3ae;
+}
+
+.cover-description .description-line1,
+.cover-description .description-line2 {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: #d8c3ae;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.cover-button {
+  width: calc(75% - 20px);
+  min-height: 43.5px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  margin: 0 20px;
+  transition: all 0.3s;
+  position: relative;
+  z-index: 10;
+}
+
+.cover-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  opacity: 0.95;
+}

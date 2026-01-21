@@ -1,0 +1,51 @@
+.language-switch {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  background: #4c2618;
+  border: 1px solid #673d2e;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+  overflow: hidden;
+  position: relative;
+  height: 28px;
+}
+
+.language-switch:hover {
+  opacity: 0.9;
+}
+
+.language-switch span {
+  padding: 4px 10px;
+  color: #c1b6b1;
+  font-family: var(--font-chinese);
+  transition: all 0.3s;
+  position: relative;
+  font-size: 12px;
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 100%;
+}
+
+/* 英文文字使用 Times New Roman */
+.language-switch span:last-child {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.language-switch span.active {
+  background: #8a6753;
+  border: 1px solid #35241b;
+  border-radius: 5px;
+  color: #e0d4ce;
+  font-weight: 400;
+}
+
+.language-switch .separator {
+  display: none;
+}
