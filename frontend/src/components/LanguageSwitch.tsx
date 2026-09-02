@@ -6,9 +6,16 @@ export const LanguageSwitch: React.FC = () => {
   const { language, toggleLanguage } = useLanguageStore();
 
   return (
-    <button className="language-switch" onClick={toggleLanguage}>
-      <span className={language === 'CN' ? 'active' : ''}>中</span>
-      <span className={language === 'EN' ? 'active' : ''}>EN</span>
+    <button
+      type="button"
+      className="language-switch"
+      onClick={toggleLanguage}
+      role="switch"
+      aria-checked={language === 'EN'}
+      aria-label={language === 'CN' ? '切换为英文' : 'Switch to Chinese'}
+    >
+      <span aria-hidden="true" className={language === 'CN' ? 'active' : ''}>中</span>
+      <span aria-hidden="true" className={language === 'EN' ? 'active' : ''}>EN</span>
     </button>
   );
 };

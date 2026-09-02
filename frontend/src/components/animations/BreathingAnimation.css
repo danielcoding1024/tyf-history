@@ -1,15 +1,23 @@
 .breathing-animation {
   display: inline-block;
-  animation: breathing 2s ease-in-out infinite;
+  animation: breathing 3.2s ease-in-out infinite;
+  transform-origin: center bottom;
 }
 
 @keyframes breathing {
   0%, 100% {
-    transform: scale(1);
     opacity: 1;
+    transform: scale(1);
   }
+
   50% {
-    transform: scale(1.25);
-    opacity: 0.85;
+    opacity: 0.97;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breathing-animation {
+    animation: none;
   }
 }

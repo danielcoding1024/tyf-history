@@ -14,50 +14,34 @@ export const Typewriter: React.FC<TypewriterProps> = ({
   loop = true,
   className = '',
 }) => {
-  const [displayText, setDisplayText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isTyping, setIsTyping] = useState(true);
-
-  // 当text改变时，重置状态
-  useEffect(() => {
-    setDisplayText('');
-    setCurrentIndex(0);
-    setIsTyping(true);
-  }, [text]);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
 
   useEffect(() => {
-    if (!isTyping && !loop) return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleChange = (event: MediaQueryListEvent) => setPrefersReducedMotion(event.matches);
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    if (!loop && currentIndex >= text.length) return;
 
     const timer = setTimeout(() => {
-      if (isTyping) {
-        if (currentIndex < text.length) {
-          setDisplayText((prev) => prev + text[currentIndex]);
-          setCurrentIndex((prev) => prev + 1);
-        } else {
-          // 打字完成，等待一段时间后重置（如果开启循环）
-          if (loop) {
-            setTimeout(() => {
-              setIsTyping(false);
-              setDisplayText('');
-              setCurrentIndex(0);
-            }, 2000);
-          } else {
-            setIsTyping(false);
-          }
-        }
-      } else {
-        // 重置并开始新一轮打字
-        setIsTyping(true);
-      }
-    }, isTyping && currentIndex < text.length ? speed : 2000);
+      setCurrentIndex((previous) => previous < text.length ? previous + 1 : 0);
+    }, currentIndex < text.length ? speed : 2000);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, isTyping, text, speed, loop]);
+  }, [currentIndex, text, speed, loop, prefersReducedMotion]);
 
   return (
     <span className={`typewriter ${className}`}>
-      {displayText}
-      <span className="typewriter-cursor">|</span>
+      {prefersReducedMotion ? text : text.slice(0, currentIndex)}
+      {!prefersReducedMotion && <span className="typewriter-cursor">|</span>}
     </span>
   );
 };

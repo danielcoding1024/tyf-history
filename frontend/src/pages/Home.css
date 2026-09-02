@@ -1,250 +1,266 @@
-.home-page {
-  width: 100%;
-  min-height: 100vh;
-  position: relative;
-  background: transparent;
-}
-
+.home-page,
 .home-background {
   width: 100%;
   min-height: 100vh;
-  background: transparent;
-  overflow-y: auto;
+  min-height: 100dvh;
 }
 
 .home-content {
   width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 32px 12px 20px 12px;
+  max-width: 560px;
   min-height: 100vh;
-  overflow-y: auto;
+  margin: 0 auto;
+  padding: calc(24px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
 }
 
 .home-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 0 0 8px 0;
-  margin-top: -8px;
-  width: 100%;
-  max-width: 100%;
-  position: relative;
-}
-
-.home-header > h1 {
-  flex: 1;
-  text-align: center;
-  position: relative;
-  width: 100%;
-}
-
-.home-language-switch-container {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 8px 12px 0 12px;
-  margin-bottom: 0;
+  justify-content: center;
 }
 
 .home-title-image {
-  width: 100%;
-  max-width: 351px;
+  display: block;
+  width: min(100%, 335px);
   height: auto;
   object-fit: contain;
-  display: block;
-  margin: 0 auto;
+  filter: drop-shadow(0 5px 14px rgba(0, 0, 0, 0.28));
+}
+
+.home-language-switch-container {
+  display: flex;
+  justify-content: flex-end;
+  margin: 2px 0 12px;
 }
 
 .home-main-image {
+  position: relative;
   width: 100%;
-  margin: 0 0 8px 0;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 12px;
+  overflow: hidden;
+  background: #21120f;
+  border: 1px solid rgba(185, 137, 82, 0.76);
+  border-radius: 10px;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+}
+
+.home-main-image::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 70%, rgba(15, 8, 6, 0.32));
 }
 
 .home-main-image img {
+  display: block;
   width: 100%;
-  height: auto;
-  border-radius: 8px;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-read-book,
+.home-question-button,
+.timeline-item {
+  appearance: none;
+  font: inherit;
 }
 
 .home-read-book {
   width: 100%;
-  padding: 10px 16px;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  background-position: center;
-  border-radius: 6px;
-  margin: 8px 0;
+  min-height: 68px;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow: hidden;
+  color: var(--color-paper);
+  text-align: left;
   cursor: pointer;
-  transition: all 0.3s;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-}
-
-.home-read-book:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
+  background-color: rgba(25, 13, 10, 0.72);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid rgba(185, 137, 82, 0.58);
+  border-radius: 10px;
 }
 
 .read-book-content {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
   gap: 12px;
+  align-items: center;
   width: 100%;
-  padding-left: 8px;
+  min-height: inherit;
+  padding: 11px 14px;
+  background: linear-gradient(90deg, rgba(24, 12, 9, 0.9), rgba(24, 12, 9, 0.5));
 }
 
-/* Breathing animation样式在BreathingAnimation.css中定义，这里不覆盖 */
-
 .book-icon {
-  width: 40px;
-  height: 18px;
-  object-fit: contain;
   display: block;
-  vertical-align: middle;
+  width: 38px;
+  height: 27px;
+  object-fit: contain;
+}
+
+.read-book-copy,
+.home-question-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.read-book-kicker,
+.home-question-kicker {
+  margin-bottom: 3px;
+  color: var(--color-copper);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
 }
 
 .read-book-text {
-  font-family: 'Times New Roman', Times, serif;
+  color: var(--color-paper);
+  font-family: var(--font-display);
   font-size: 15px;
-  font-weight: 400;
-  color: #d8c3ae;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  white-space: nowrap;
-  flex-shrink: 0;
+  line-height: 1.28;
+}
+
+.read-book-arrow {
+  color: var(--color-copper);
+  font-family: var(--font-ui);
+  font-size: 20px;
 }
 
 .home-question-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 8px 0;
   width: 100%;
+  margin-bottom: 18px;
 }
 
 .home-question-button {
-  flex: 1;
-  padding: 16px 20px;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  background-position: center;
-  border: none;
-  border-radius: 6px;
-  font-family: 'Times New Roman', Times, serif;
-  font-size: 17px;
-  font-weight: 600;
-  color: #333;
-  cursor: pointer;
-  transition: all 0.3s;
-  text-align: left;
-  min-height: 60px;
   display: flex;
+  gap: 8px;
   align-items: center;
-  background-color: transparent;
+  width: 100%;
+  min-height: 86px;
+  padding: 9px 9px 9px 15px;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+  background-color: rgba(230, 205, 173, 0.92);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid rgba(241, 223, 195, 0.54);
+  border-radius: 10px;
+  box-shadow: 0 9px 20px rgba(0, 0, 0, 0.18);
 }
 
-.home-question-button:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
+.home-question-button .home-question-kicker {
+  color: var(--color-seal);
+}
+
+.home-question-copy > :last-child {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 4.6vw, 20px);
+  font-weight: 650;
+  line-height: 1.3;
 }
 
 .home-question-icon {
-  cursor: pointer;
-  transition: transform 0.3s;
-  width: 100px;
-  height: auto;
-  flex-shrink: 0;
+  display: block;
+  width: 82px;
+  max-height: 76px;
+  flex: 0 0 auto;
   object-fit: contain;
-}
-
-.home-question-icon:hover {
-  transform: scale(1.05);
+  object-position: bottom center;
 }
 
 .home-timeline {
-  margin: 8px 0 0 0;
-  padding: 8px 12px;
-  background: transparent;
-  border-radius: 6px;
+  padding: 16px 0 8px;
+  border-top: 1px solid rgba(234, 216, 188, 0.32);
+  border-bottom: 1px solid rgba(234, 216, 188, 0.18);
 }
 
 .timeline-title {
-  font-family: 'Times New Roman', Times, serif;
+  margin: 0 0 16px;
+  color: var(--color-paper-soft);
+  font-family: var(--font-display);
   font-size: 17px;
-  font-weight: 400;
-  color: #d8c3ae;
-  margin: 0 0 8px 0;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-align: center;
-  text-shadow: 
-    2px 2px 4px rgba(0, 0, 0, 0.5),
-    1px 1px 2px rgba(216, 195, 174, 0.8),
-    0 0 10px rgba(216, 195, 174, 0.4);
-  letter-spacing: 2px;
-  font-style: normal;
 }
 
 .timeline-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  position: relative;
-  padding-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .timeline-content::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.3);
-  z-index: 0;
+  content: none;
 }
 
 .timeline-item {
   display: flex;
   flex-direction: column;
+  gap: 7px;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  flex: 1;
-  transition: transform 0.3s;
   min-width: 0;
-}
-
-.timeline-item:hover {
-  transform: translateY(-5px);
+  min-height: 62px;
+  padding: 7px 2px;
+  color: var(--color-paper-soft);
+  text-align: center;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
 }
 
 .timeline-icon {
+  display: block;
   width: 28px;
   height: 28px;
-  min-width: 28px;
-  min-height: 28px;
   object-fit: contain;
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
 }
 
-.timeline-item span {
-  font-family: 'Times New Roman', Times, serif;
-  font-size: 15px;
-  font-weight: 400;
-  color: #d8c3ae;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.timeline-item > span:not(.timeline-item-arrow) {
   width: 100%;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 12px;
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-item-arrow {
+  display: none;
+}
+
+@media (hover: hover) {
+  .home-read-book,
+  .home-question-button,
+  .timeline-item {
+    transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+  }
+
+  .home-read-book:hover,
+  .home-question-button:hover,
+  .timeline-item:hover {
+    transform: translateY(-2px);
+  }
+
+  .timeline-item:hover {
+    background: rgba(58, 33, 27, 0.5);
+  }
+}
+
+@media (max-width: 340px) {
+  .home-question-icon {
+    width: 70px;
+  }
+
+  .timeline-item > span:not(.timeline-item-arrow) {
+    font-size: 11px;
+  }
 }

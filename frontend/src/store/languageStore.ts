@@ -8,11 +8,24 @@ interface LanguageState {
   toggleLanguage: () => void;
 }
 
+const syncDocumentLanguage = (language: Language) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = language === 'CN' ? 'zh-CN' : 'en';
+  }
+};
+
+syncDocumentLanguage('EN');
+
 export const useLanguageStore = create<LanguageState>((set) => ({
-  language: 'EN' as Language,
-  setLanguage: (lang: Language) => set({ language: lang }),
+  language: 'EN',
+  setLanguage: (lang: Language) => {
+    syncDocumentLanguage(lang);
+    set({ language: lang });
+  },
   toggleLanguage: () =>
-    set((state: LanguageState) => ({ 
-      language: state.language === 'CN' ? 'EN' : 'CN' 
-    })),
+    set((state: LanguageState) => {
+      const nextLanguage = state.language === 'CN' ? 'EN' : 'CN';
+      syncDocumentLanguage(nextLanguage);
+      return { language: nextLanguage };
+    }),
 }));

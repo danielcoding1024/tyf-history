@@ -1,18 +1,25 @@
 .typewriter {
-  display: inline-block;
+  display: inline;
 }
 
 .typewriter-cursor {
   display: inline-block;
   margin-left: 2px;
-  animation: blink 1s infinite;
+  animation: blink 1s steps(1, end) infinite;
 }
 
 @keyframes blink {
   0%, 50% {
     opacity: 1;
   }
+
   51%, 100% {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typewriter-cursor {
+    animation: none;
   }
 }

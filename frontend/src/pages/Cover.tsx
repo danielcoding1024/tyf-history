@@ -13,17 +13,6 @@ export const Cover: React.FC = () => {
     navigate('/home');
   };
 
-  const titleLabels: Record<'CN' | 'EN', { line1: string; line2: string }> = {
-    CN: {
-      line1: '数字历史',
-      line2: '教堂博物馆',
-    },
-    EN: {
-      line1: 'Digital History',
-      line2: 'Church Museum',
-    },
-  };
-
   const descriptionLabels: Record<'CN' | 'EN', { line1: string; line2: string }> = {
     CN: {
       line1: '数字化身动画',
@@ -47,7 +36,7 @@ export const Cover: React.FC = () => {
           <div className="cover-header">
             <img 
               src={assetsConfig.cover.titleImage} 
-              alt="Title" 
+              alt={language === 'CN' ? '通远坊数字历史档案馆' : 'Tongyuan Ward Digital History Archive'}
               className="cover-title-image"
             />
           </div>
@@ -57,7 +46,7 @@ export const Cover: React.FC = () => {
             <div className="cover-building-container">
               <img
                 src={assetsConfig.cover.buildingGif}
-                alt="Building"
+                alt={language === 'CN' ? '通远坊历史建筑群' : 'Historic architecture of Tongyuan Ward'}
                 className="cover-building"
               />
             </div>
@@ -68,15 +57,14 @@ export const Cover: React.FC = () => {
           </div>
 
           <button 
+            type="button"
             className="cover-button" 
             onClick={handleGetStarted}
-            style={{
-              backgroundImage: `url(${assetsConfig.cover.buttonImage})`,
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'center',
-            }}
-          />
+            aria-label={buttonLabels[language]}
+          >
+            <span>{buttonLabels[language]}</span>
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
       </div>
     </div>
