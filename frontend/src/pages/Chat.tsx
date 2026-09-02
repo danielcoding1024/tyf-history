@@ -1,8 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { assetsConfig } from '../config/assets.config';
-import { getRandomQuestions } from '../config/questions.config';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { LanguageSwitch } from '../components/LanguageSwitch';
 import { BreathingAnimation } from '../components/animations/BreathingAnimation';
+import { assetsConfig } from '../config/assets.config';
+import { siteCopy, type Language } from '../config/detail-content.config';
+import { getAnswer } from '../config/qa.config';
+import { getRandomQuestions } from '../config/questions.config';
+import {
+  buildDashScopeRequest,
+  normalizeAssistantText,
+  readDashScopeResponse,
+  type DashScopeMessage,
+} from '../lib/dashscope-chat';
+import { useLanguageStore } from '../store/languageStore';
 import './Chat.css';
 
 interface Message {
@@ -12,268 +22,219 @@ interface Message {
   timestamp: Date;
 }
 
-const API_URL = 'http://tyfhistory.com/api/chat';
+interface ChatSessionProps {
+  language: Language;
+}
 
-export const Chat: React.FC = () => {
+const API_URL = '/api/chat';
+
+const createMessage = (text: string, isUser: boolean, prefix: string): Message => ({
+  id: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  text,
+  isUser,
+  timestamp: new Date(),
+});
+
+const ChatSession: React.FC<ChatSessionProps> = ({ language }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const copy = siteCopy[language];
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo || '/home';
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => [
+    createMessage(copy.chatGreeting, false, 'greeting'),
+  ]);
   const [inputText, setInputText] = useState('');
-  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(
+    () => getRandomQuestions(language),
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const returnTo = (location.state as { returnTo?: string })?.returnTo || '/home';
 
-  // Initialize greeting and suggested questions (English only)
   useEffect(() => {
-    const greeting = 'Hello, I am your digital history guide. How can I help you?';
+    setSuggestedQuestions(getRandomQuestions(language));
+  }, [language]);
 
-    setMessages([
-      {
-        id: 'greeting',
-        text: greeting,
-        isUser: false,
-        timestamp: new Date(),
-      },
-    ]);
-
-    setSuggestedQuestions(getRandomQuestions('EN'));
-  }, []);
-
-  // Scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, [messages, isLoading]);
 
-  const handleBack = () => navigate(returnTo);
+  const getErrorMessage = (errorMessage?: string) => {
+    let message = language === 'CN'
+      ? '抱歉，服务暂时不可用，请稍后再试。'
+      : 'Sorry, the service is temporarily unavailable. Please try again later.';
 
-  const appendBotMessage = (text: string) => {
-    const botMessage: Message = {
-      id: `bot-${Date.now()}`,
-      text,
-      isUser: false,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, botMessage]);
+    if (errorMessage?.includes('Failed to fetch') || errorMessage?.includes('NetworkError')) {
+      message = language === 'CN'
+        ? '网络连接失败，请检查网络后重试。'
+        : 'Network error: unable to connect to the server. Please check your connection.';
+    } else if (errorMessage?.includes('HTTP 404')) {
+      message = language === 'CN' ? '问答接口暂未找到，请联系管理员。' : 'The chat endpoint was not found. Please contact support.';
+    } else if (errorMessage?.includes('HTTP 500')) {
+      message = language === 'CN' ? '问答服务出现内部错误，请稍后再试。' : 'The chat server encountered an internal error. Please try again later.';
+    } else if (errorMessage?.includes('HTTP 503')) {
+      message = language === 'CN'
+        ? '问答服务尚未配置 API Key，请完成配置后重试。'
+        : 'The chat API key has not been configured yet.';
+    } else if (errorMessage?.includes('HTTP 403')) {
+      message = language === 'CN' ? '当前请求没有访问权限。' : 'This request is not authorized.';
+    }
+
+    return message;
   };
 
-  const appendErrorMessage = (errorMessage?: string) => {
-    let message = 'Sorry, an error occurred. Please try again later.';
-    if (errorMessage) {
-      // Show user-friendly error messages
-      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
-        message = 'Network error: Unable to connect to the server. Please check your internet connection.';
-      } else if (errorMessage.includes('CORS')) {
-        message = 'CORS error: The server is not allowing requests from this origin.';
-      } else if (errorMessage.includes('HTTP 404')) {
-        message = 'API endpoint not found. Please contact support.';
-      } else if (errorMessage.includes('HTTP 500')) {
-        message = 'Server error: The API server encountered an internal error.';
-      } else if (errorMessage.includes('HTTP 403')) {
-        message = 'Access forbidden: You do not have permission to access this resource.';
-      }
-    }
-    appendBotMessage(message);
+  const refreshSuggestedQuestions = () => {
+    setSuggestedQuestions(getRandomQuestions(language));
+  };
+
+  const replaceMessageText = (messageId: string, text: string) => {
+    setMessages((previous) => previous.map((message) => (
+      message.id === messageId ? { ...message, text } : message
+    )));
   };
 
   const handleSendMessage = async (text?: string) => {
     const messageText = (text ?? inputText).trim();
-    if (!messageText) return;
+    if (!messageText || isLoading) return;
 
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      text: messageText,
-      isUser: true,
-      timestamp: new Date(),
-    };
+    const userMessage = createMessage(messageText, true, 'user');
+    const botMessage = createMessage('', false, 'bot');
+    const requestMessages: DashScopeMessage[] = [...messages, userMessage].map((message) => ({
+      role: message.isUser ? 'user' : 'assistant',
+      content: message.text,
+    }));
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((previous) => [...previous, userMessage, botMessage]);
     setInputText('');
     setIsLoading(true);
 
     try {
-      const requestBody = {
-        question: messageText,
-      };
-
-      console.log('Sending chat request to:', API_URL);
-      console.log('Request body:', requestBody);
-
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(buildDashScopeRequest(requestMessages)),
       });
 
-      console.log('Response status:', response.status, response.statusText);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      const replyText = await readDashScopeResponse(response, (delta) => {
+        setMessages((previous) => previous.map((message) => (
+          message.id === botMessage.id ? { ...message, text: `${message.text}${delta}` } : message
+        )));
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('Response error text:', errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log('Response data:', data);
-
-      // Check for different possible response formats
-      // API returns: {"lang":"en","answer":"...","tags":[]}
-      let replyText = '';
-      if (data && typeof data.answer === 'string') {
-        replyText = data.answer;
-      } else if (data && typeof data.reply === 'string') {
-        replyText = data.reply;
-      } else if (data && typeof data.response === 'string') {
-        replyText = data.response;
-      } else if (typeof data === 'string') {
-        replyText = data;
-      } else {
-        console.error('Unexpected response format:', data);
-        throw new Error('Invalid response format. Expected answer, reply, response, or string.');
-      }
-
-      appendBotMessage(replyText);
-
-      // Refresh suggested questions
-      setSuggestedQuestions(getRandomQuestions('EN'));
-    } catch (err) {
-      console.error('Chat error details:', err);
-      let errorMessage = '';
-      if (err instanceof Error) {
-        errorMessage = err.message;
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-      } else if (typeof err === 'string') {
-        errorMessage = err;
-      } else {
-        errorMessage = String(err);
-      }
-      appendErrorMessage(errorMessage);
+      // 非流式兼容响应不会触发 delta 回调，需要补写完整回答。
+      replaceMessageText(botMessage.id, normalizeAssistantText(replyText));
+      refreshSuggestedQuestions();
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('Chat request failed:', error);
+      const localAnswer = getAnswer(messageText);
+      replaceMessageText(
+        botMessage.id,
+        localAnswer ?? getErrorMessage(error instanceof Error ? error.message : String(error)),
+      );
+      if (localAnswer) refreshSuggestedQuestions();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSuggestedQuestion = (q: string) => handleSendMessage(q);
-
   return (
     <div className="chat-page">
       <div className="chat-background">
-        <div className="chat-header">
-          <button className="chat-back-button" onClick={handleBack}>
-            <img src={assetsConfig.icons.back} alt="Back" />
+        <header className="chat-header">
+          <button
+            type="button"
+            className="chat-back-button"
+            onClick={() => navigate(returnTo)}
+            aria-label={language === 'CN' ? '返回上一页' : 'Back'}
+          >
+            <img src={assetsConfig.icons.back} alt="" aria-hidden="true" />
           </button>
+          <h1 className="chat-title">{copy.chatTitle}</h1>
+          <LanguageSwitch />
+        </header>
 
-          <h2 className="chat-title">Digital Avatar Priest</h2>
-        </div>
-
-        <div className="chat-content">
-          <div className="chat-greeting-area">
-            <div
-              className="chat-greeting-bubble"
-              style={{
-                backgroundImage: `url(${assetsConfig.chat.bubbleImage})`,
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-              }}
-            >
-              <p>{messages[0]?.text || ''}</p>
+        <main className="chat-content">
+          <section className="chat-greeting-area" aria-label={copy.chatTitle}>
+            <div className="chat-greeting-bubble">
+              <p>{messages[0]?.text}</p>
             </div>
-
-            <div className="chat-priest-model">
+            <div className="chat-priest-model" aria-hidden="true">
               <BreathingAnimation>
-                <img src={assetsConfig.chat.priestModel} alt="Priest" />
+                <img src={assetsConfig.chat.priestModel} alt="" />
               </BreathingAnimation>
             </div>
-          </div>
+          </section>
 
-          <div className="chat-messages">
-            {messages.slice(1).map((m) => (
-              <div key={m.id} className={`chat-message ${m.isUser ? 'user' : 'bot'}`}>
-                <div
-                  className="chat-bubble"
-                  style={{
-                    backgroundImage: `url(${assetsConfig.chat.bubbleImage})`,
-                    backgroundSize: '100% 100%',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                  }}
-                >
-                  <p>{m.text}</p>
+          <section className="chat-messages" aria-live="polite" aria-label={language === 'CN' ? '对话记录' : 'Conversation'}>
+            {messages.slice(1).map((message) => (
+              <article key={message.id} className={`chat-message ${message.isUser ? 'user' : 'bot'}`}>
+                <div className="chat-bubble">
+                  {message.text ? (
+                    <p>{message.text}</p>
+                  ) : (
+                    <div className="chat-loading" aria-label={language === 'CN' ? '正在回答' : 'Preparing an answer'}>
+                      <span /><span /><span />
+                    </div>
+                  )}
                 </div>
-              </div>
+              </article>
             ))}
 
-            {isLoading && (
-              <div className="chat-message bot">
-                <div className="chat-bubble">
-                  <div className="chat-loading">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div ref={messagesEndRef} />
-          </div>
+          </section>
 
           {suggestedQuestions.length > 0 && (
-            <div
-              className="chat-suggested-questions"
-              style={{
-                backgroundImage: `url(${assetsConfig.chat.bubbleImage})`,
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-              }}
-            >
-              <h3 className="suggested-title">Suggested Questions</h3>
-
+            <section className="chat-suggested-questions">
+              <h2 className="suggested-title">{copy.suggestedQuestions}</h2>
               <div className="suggested-list">
-                {suggestedQuestions.map((q, idx) => (
+                {suggestedQuestions.map((question) => (
                   <button
-                    key={idx}
+                    type="button"
+                    key={question}
                     className="suggested-question"
-                    onClick={() => handleSuggestedQuestion(q)}
+                    onClick={() => void handleSendMessage(question)}
+                    disabled={isLoading}
                   >
-                    {q}
+                    <span>{question}</span>
+                    <span className="suggested-arrow" aria-hidden="true">→</span>
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           )}
-        </div>
+        </main>
 
-        <div className="chat-input-area">
+        <form
+          className="chat-input-area"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSendMessage();
+          }}
+        >
           <input
             type="text"
             className="chat-input"
-            placeholder="Type a message..."
+            placeholder={copy.chatPlaceholder}
+            aria-label={copy.chatPlaceholder}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
+            onChange={(event) => setInputText(event.target.value)}
           />
-
           <button
+            type="submit"
             className="chat-send-button"
-            onClick={() => handleSendMessage()}
             disabled={!inputText.trim() || isLoading}
           >
-            Send
+            {copy.send}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
+};
+
+export const Chat: React.FC = () => {
+  const { language } = useLanguageStore();
+  return <ChatSession language={language} />;
 };

@@ -1,42 +1,61 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useLanguageStore } from '../store/languageStore';
-import { assetsConfig, getPdfPath } from '../config/assets.config';
+import { assetsConfig, getOverviewPdfPath } from '../config/assets.config';
+import {
+  architectureStages,
+  historicalEvents,
+  historicalFigures,
+  historyStages,
+  overviewContent,
+  siteCopy,
+  type Language,
+} from '../config/detail-content.config';
 import { LanguageSwitch } from '../components/LanguageSwitch';
-import { BreathingAnimation } from '../components/animations/BreathingAnimation';
 import { Carousel } from '../components/Carousel';
 import './Detail.css';
 
 type TabType = 'overview' | 'events' | 'figures' | 'elements';
 
-const tabLabels: Record<'CN' | 'EN', Record<TabType, string>> = {
+const validCategories = ['overview', 'history', 'architecture', 'voices'] as const;
+type DetailCategory = (typeof validCategories)[number];
+
+const isDetailCategory = (value: string): value is DetailCategory =>
+  validCategories.includes(value as DetailCategory);
+
+interface TabLabel {
+  short: string;
+  full: string;
+}
+
+const tabLabels: Record<'CN' | 'EN', Record<TabType, TabLabel>> = {
   CN: {
-    overview: '概述',
-    events: '关键事件',
-    figures: '关键人物',
-    elements: '三要素脉络',
+    overview: { short: '概览', full: '历史概述' },
+    events: { short: '事件', full: '关键事件' },
+    figures: { short: '人物', full: '关键人物' },
+    elements: { short: '要素', full: '三要素脉络' },
   },
   EN: {
-    overview: 'Overview',
-    events: 'Key Events',
-    figures: 'Key Figures',
-    elements: 'Three Elements',
+    overview: { short: 'Overview', full: 'History overview' },
+    events: { short: 'Events', full: 'Key events' },
+    figures: { short: 'Figures', full: 'Key figures' },
+    elements: { short: 'Elements', full: 'Three elements' },
   },
 };
 
 // 建筑类别的专用标签
-const architectureTabLabels: Record<'CN' | 'EN', Record<TabType, string>> = {
+const architectureTabLabels: Record<'CN' | 'EN', Record<TabType, TabLabel>> = {
   CN: {
-    overview: '概述',
-    events: '建筑详情',
-    figures: '建筑形态',
-    elements: '中西融合',
+    overview: { short: '概览', full: '建筑群概览' },
+    events: { short: '详情', full: '建筑详情' },
+    figures: { short: '形态', full: '建筑形态' },
+    elements: { short: '融合', full: '中西融合' },
   },
   EN: {
-    overview: 'Overview',
-    events: 'Building Details',
-    figures: 'Architectural Forms',
-    elements: 'Sino-Western Fusion',
+    overview: { short: 'Overview', full: 'Building overview' },
+    events: { short: 'Details', full: 'Building details' },
+    figures: { short: 'Forms', full: 'Architectural forms' },
+    elements: { short: 'Fusion', full: 'Sino-Western fusion' },
   },
 };
 
@@ -55,58 +74,164 @@ const categoryLabels: Record<'CN' | 'EN', Record<string, string>> = {
   },
 };
 
+interface VoicesPanelProps {
+  language: Language;
+  title: string;
+  stories: Array<{ content: string; audio: string }>;
+}
+
+type PlaybackStatus = 'idle' | 'playing' | 'paused' | 'ended';
+
+const formatPlaybackTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+};
+
+const VoicesPanel: React.FC<VoicesPanelProps> = ({ language, title, stories }) => {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>('idle');
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const removeAudioListenersRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    removeAudioListenersRef.current?.();
+    audioRef.current?.pause();
+  }, []);
+
+  const handlePlayPause = (index: number) => {
+    const currentAudio = audioRef.current;
+
+    if (activeIndex === index && currentAudio) {
+      if (playbackStatus === 'playing') {
+        currentAudio.pause();
+        setPlaybackStatus('paused');
+        return;
+      }
+
+      if (playbackStatus === 'ended') {
+        currentAudio.currentTime = 0;
+        setCurrentTime(0);
+      }
+
+      void currentAudio.play().catch(() => setPlaybackStatus('idle'));
+      return;
+    }
+
+    if (currentAudio) {
+      removeAudioListenersRef.current?.();
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
+    const nextAudio = new Audio(stories[index].audio);
+    const updateDuration = () => setDuration(nextAudio.duration);
+    const updateCurrentTime = () => setCurrentTime(nextAudio.currentTime);
+    const markPlaying = () => setPlaybackStatus('playing');
+    const markPaused = () => {
+      if (!nextAudio.ended) setPlaybackStatus('paused');
+    };
+    const markEnded = () => {
+      setPlaybackStatus('ended');
+      setCurrentTime(nextAudio.duration || nextAudio.currentTime);
+    };
+    const markError = () => setPlaybackStatus('idle');
+
+    nextAudio.addEventListener('loadedmetadata', updateDuration);
+    nextAudio.addEventListener('durationchange', updateDuration);
+    nextAudio.addEventListener('timeupdate', updateCurrentTime);
+    nextAudio.addEventListener('play', markPlaying);
+    nextAudio.addEventListener('pause', markPaused);
+    nextAudio.addEventListener('ended', markEnded);
+    nextAudio.addEventListener('error', markError);
+    removeAudioListenersRef.current = () => {
+      nextAudio.removeEventListener('loadedmetadata', updateDuration);
+      nextAudio.removeEventListener('durationchange', updateDuration);
+      nextAudio.removeEventListener('timeupdate', updateCurrentTime);
+      nextAudio.removeEventListener('play', markPlaying);
+      nextAudio.removeEventListener('pause', markPaused);
+      nextAudio.removeEventListener('ended', markEnded);
+      nextAudio.removeEventListener('error', markError);
+    };
+
+    audioRef.current = nextAudio;
+    setActiveIndex(index);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaybackStatus('idle');
+    void nextAudio.play().catch(() => setPlaybackStatus('idle'));
+  };
+
+  const getPlaybackLabel = (index: number) => {
+    if (activeIndex === index && playbackStatus === 'playing') {
+      return language === 'CN' ? '暂停播放' : 'Pause playback';
+    }
+    if (activeIndex === index && playbackStatus === 'paused') {
+      return language === 'CN' ? '继续播放' : 'Resume playback';
+    }
+    return language === 'CN' ? '播放口述' : 'Play oral history';
+  };
+
+  return (
+    <div className="voices-content">
+      <div className="subsection">
+        <h2 className="subsection-title">{title}</h2>
+        {stories.map((story, index) => {
+          const isActive = activeIndex === index;
+          const isPlaying = isActive && playbackStatus === 'playing';
+
+          return (
+            <article key={story.content.slice(0, 24)} className="voice-story-item">
+              <div className="voice-story-content">
+                <p className="voice-story-text">{story.content}</p>
+              </div>
+              <button
+                type="button"
+                className="voice-play-button"
+                onClick={() => handlePlayPause(index)}
+                aria-pressed={isPlaying}
+                aria-label={getPlaybackLabel(index)}
+              >
+                <svg className="voice-play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  {isPlaying ? (
+                    <path d="M7 5h3v14H7zm7 0h3v14h-3z" />
+                  ) : (
+                    <path d="M8 5.7v12.6c0 .8.9 1.3 1.6.8l9-6.3c.6-.4.6-1.2 0-1.6l-9-6.3C8.9 4.4 8 4.9 8 5.7Z" />
+                  )}
+                </svg>
+                <span className="voice-play-label">{getPlaybackLabel(index)}</span>
+              </button>
+              {isActive && (
+                <p className="voice-playback-time" aria-live="polite">
+                  {formatPlaybackTime(currentTime)} / {formatPlaybackTime(duration)}
+                </p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
 export const Detail: React.FC = () => {
   const navigate = useNavigate();
   const { category = 'overview' } = useParams<{ category: string }>();
   const { language } = useLanguageStore();
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
-  
-  // 音频播放状态（移到组件级别，以便在页面切换时停止）
-  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-  const audioRefs = useRef<Array<HTMLAudioElement | null>>([null, null, null]);
-  // 存储每个音频对应的语言，用于检测语言变化
-  const audioLanguageRefs = useRef<Array<'CN' | 'EN' | null>>([null, null, null]);
+  const [tabSelection, setTabSelection] = useState<{ category: string; tab: TabType }>({
+    category,
+    tab: 'overview',
+  });
+  const activeTab = tabSelection.category === category ? tabSelection.tab : 'overview';
 
-  // 当category变化时，重置activeTab为overview，并停止所有音频
-  useEffect(() => {
-    setActiveTab('overview');
-    // 停止所有正在播放的音频
-    audioRefs.current.forEach((audio) => {
-      if (audio && !audio.paused) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    });
-    setPlayingIndex(null);
-  }, [category]);
-  
-  // 当语言变化时，停止所有音频并清理audioRefs
-  useEffect(() => {
-    // 停止所有正在播放的音频
-    audioRefs.current.forEach((audio) => {
-      if (audio && !audio.paused) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    });
-    // 清理audioRefs和audioLanguageRefs，以便下次播放时使用新语言的音频
-    audioRefs.current = [null, null, null];
-    audioLanguageRefs.current = [null, null, null];
-    setPlayingIndex(null);
-  }, [language]);
-  
-  // 当组件卸载时，停止所有音频
-  useEffect(() => {
-    return () => {
-      audioRefs.current.forEach((audio) => {
-        if (audio && !audio.paused) {
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      });
-    };
-  }, []);
+  if (!isDetailCategory(category)) {
+    return <Navigate to="/detail/overview" replace />;
+  }
 
   const handleBack = () => {
     navigate('/home');
@@ -118,236 +243,75 @@ export const Detail: React.FC = () => {
 
   const tabs: TabType[] = ['overview', 'events', 'figures', 'elements'];
   // 根据category选择标签：建筑类别使用专用标签，其他使用通用标签（voices 不显示标签页）
-  const labels = category === 'architecture' 
+  const labels = category === 'architecture'
     ? architectureTabLabels[language]
     : tabLabels[language];
-  
+
   // 根据category动态设置标题（使用categoryLabels而不是labels）
   const pageTitle = categoryLabels[language][category] || categoryLabels[language].overview;
 
-  // 各标签页内容数据
-  // 注意：旧的 overviewContent 已删除，请使用 tabContent
-  // const _old_overviewContent_removed = {
-  //   CN: {
-  //     what: "通远坊是位于陕西西安高陵的一个以天主教主教座堂为核心形成的历史性宗教社区，始建于清康熙五十年（1711年），19世纪中叶起成为天主教陕西宗座代牧区乃至整个中国西北地区的最高教务行政与传教中心，被称为\"陕西总堂\"。它不仅承担宗教礼仪功能，还集主教驻地、修道院、神学院、育婴堂和慈善医疗于一体，构成一个自给自足的宗教—社会综合体；其建筑群在近代毁灭与重建中形成中西合璧的形态，至今仍延续宗教使用，既是西北天主教传播与本土化的重要见证，也是研究近代中西文化交流与地方宗教社区史的关键遗产样本。",
-  //     values: [
-  //       {
-  //         title: "历史价值",
-  //         text: "通远坊是天主教在中国西北内陆最早扎根并长期作为核心的传教与行政中心，自清初禁教时期存续至近代，曾为陕西及西北宗座代牧区主教座堂，直接隶属罗马教廷，其发展完整呈现了天主教在中国由地下传播、制度化扩展到本土化转型的历史进程。"
-  //       },
-  //       {
-  //         title: "建筑价值",
-  //         text: "通远坊保存了西北地区规模最大、体系最完整的天主教建筑群，空间格局承袭中国传统院落秩序，结构与装饰以本土营造技术转译西方教堂形制，是内陆地区中西建筑融合与近代教堂本土化的典型实物范例，具有突出的建筑史与技术史价值。"
-  //       },
-  //       {
-  //         title: "社会价值",
-  //         text: "通远坊不仅是宗教建筑，更是一个延续至今的教民社区核心，长期承担教育、医疗、育婴与慈善职能，形成以信仰为纽带的稳定社会网络，其礼仪、节庆与生活方式体现了宗教与地方文化的深度融合，是研究近代内陆宗教社区与社会变迁的重要活态样本。"
-  //       }
-  //     ],
-  //     sections: [
-  //       { title: "历史沿革", text: "通远坊自清初建堂至近代的历史进程，以及其作为西北天主教中心的形成与变迁。" },
-  //       { title: "建筑", text: "通远坊教堂及相关建筑群的空间格局、建筑形制与中西融合特征。" },
-  //       { title: "社区口述史", text: "教民亲身经历中的日常生活、信仰实践与动荡年代的集体记忆。" }
-  //     ],
-  //     recommended: [
-  //       {
-  //         title: "四阶段",
-  //         text: "清初至1845年为初创与扎根期，在禁教与松动并存的环境中形成稳定教民基础；1845年至1901年为总堂确立与快速扩张期，通远坊成为西北天主教行政中心，通过赈灾、营建与堡垒化在动荡中壮大；1902年至1932年为危机应对与地位转移期，在教权纷争与军阀混战中维持多重社会功能，最终总堂迁离；1933年至1952年为功能延续与本土化转型期，通远坊由区域中枢转为地方会院，完成从外籍主导向本地教会的历史转折。"
-  //       },
-  //       {
-  //         title: "四座建筑",
-  //         text: "通远坊现存的四座核心建筑共同构成了其宗教与社区体系的物质核心：主教堂作为礼仪与精神中心，承载主教主持的重要宗教活动；小修院用于培养本土神职人员，是教会延续与本地化的关键空间；修女院承担修女居住与修行职能，并直接运营教育、医疗与慈善事务；育婴堂则集中体现通远坊长期从事的孤儿收养与社会救济功能，四者在空间与功能上相互支撑，形成一个完整而自给的宗教—社会综合体。"
-  //       },
-  //       {
-  //         title: "口述史",
-  //         text: "通远坊的口述史以亲历者记忆为核心，从孤儿院生活、修女与神父的日常照料，到信徒在政治运动中的冲击与坚守，呈现了一个兼具慈善救助、宗教实践与社区互助功能的生活世界；这些叙述还记录了文革时期教堂被保护的曲折经过，以及\"圣母洒花\"等信仰事件如何支撑教民在高压环境下维系信仰与共同体认同，构成通远坊历史中最具温度与情感深度的记忆层面。"
-  //       }
-  //     ],
-  //     events: [
-  //       { title: "清初建堂与教民聚落形成", text: "通远坊于清初建堂并逐步形成稳定教民社区，成为天主教在西北内陆扎根的重要起点。" },
-  //       { title: "确立为西北宗座代牧区总堂", text: "19世纪中叶通远坊成为西北天主教最高教务与行政中心，确立其区域性枢纽地位。" },
-  //       { title: "教难冲击与建筑重建（1901年前后）", text: "在社会动荡中教堂遭受破坏并重建，推动通远坊建筑形态与防御格局的形成。" },
-  //       { title: "总堂外迁与功能转型", text: "20世纪初西北教务中心迁离后，通远坊由区域中枢转为地方性宗教与社区中心。" },
-  //       { title: "改革开放后宗教恢复与重建", text: "1980年代政策放宽后，通远坊教堂修复、宗教生活恢复，社区信仰重新公开延续。" }
-  //     ],
-  //     location: "通远坊位于陕西省西安市高陵区通远街道一带，现为仍在使用中的天主教堂与教民社区，历史建筑主体得以保存，并持续承载宗教与社区活动。",
-  //     protection: "通远坊作为西北地区保存较为完整的天主教历史建筑群，于2008年被列为陕西省重点文物保护单位。"
-  //   },
-  //   EN: {
-  //     what: "Tongyuanfang is a historical religious community centered around a Catholic cathedral located in Gaoling, Xi'an, Shaanxi, established in 1711. From the mid-19th century, it became the highest administrative and missionary center of the Catholic Shaanxi Apostolic Vicariate and the entire Northwest China, known as the 'Shaanxi General Church'.",
-  //     values: [
-  //       { title: "Historical Value", text: "Tongyuanfang represents the earliest and longest-standing Catholic missionary and administrative center in Northwest China." },
-  //       { title: "Architectural Value", text: "Tongyuanfang preserves the largest and most complete Catholic architectural complex in Northwest China." },
-  //       { title: "Social Value", text: "Tongyuanfang is not just a religious building but a core of a continuing Christian community." }
-  //     ],
-  //     sections: [
-  //       { title: "Historical Evolution", text: "The historical process of Tongyuanfang from the early Qing Dynasty to modern times." },
-  //       { title: "Architecture", text: "The spatial layout, architectural forms and Sino-Western fusion features of Tongyuanfang church and related buildings." },
-  //       { title: "Community Oral History", text: "Daily life, faith practices and collective memories in the experience of believers." }
-  //     ],
-  //     recommended: [
-  //       { title: "Four Stages", text: "Four major historical stages of development." },
-  //       { title: "Four Buildings", text: "Four core buildings that constitute the material core of the religious and community system." },
-  //       { title: "Oral History", text: "Personal memories of believers and community members." }
-  //     ],
-  //     events: [
-  //       { title: "Early Church Establishment", text: "The formation of a stable Christian community in the early Qing Dynasty." },
-  //       { title: "Establishment as General Church", text: "Becoming the highest administrative center of Northwest China Catholicism in the mid-19th century." },
-  //       { title: "Religious Persecution and Reconstruction", text: "Church destruction and reconstruction during social turmoil around 1901." },
-  //       { title: "Relocation and Functional Transformation", text: "Transition from regional center to local religious and community center." },
-  //       { title: "Post-Reform Religious Restoration", text: "Church restoration and resumption of religious life after the 1980s." }
-  //     ],
-  //     location: "Tongyuanfang is located in Tongyuan Street, Gaoling District, Xi'an City, Shaanxi Province, and remains an active Catholic church and Christian community.",
-  //     protection: "Tongyuanfang was listed as a Shaanxi Provincial Key Cultural Relics Protection Unit in 2008."
-  //   }
-  // };
-
-  // Overview页面三个分类内容数据
-  const overviewContent = {
-    CN: {
-      项目概览: {
-        what: "通远坊是位于陕西西安高陵的一个以天主教主教座堂为核心形成的历史性宗教社区，始建于清康熙五十年（1711年），19世纪中叶起成为天主教陕西宗座代牧区乃至整个中国西北地区的最高教务行政与传教中心，被称为\"陕西总堂\"。它不仅承担宗教礼仪功能，还集主教驻地、修道院、神学院、育婴堂和慈善医疗于一体，构成一个自给自足的宗教—社会综合体；其建筑群在近代毁灭与重建中形成中西合璧的形态，至今仍延续宗教使用，既是西北天主教传播与本土化的重要见证，也是研究近代中西文化交流与地方宗教社区史的关键遗产样本。",
-        whyImportant: {
-          title: "为什么重要",
-          values: [
-            {
-              title: "历史价值",
-              text: "通远坊是天主教在中国西北内陆最早扎根并长期作为核心的传教与行政中心，自清初禁教时期存续至近代，曾为陕西及西北宗座代牧区主教座堂，直接隶属罗马教廷，其发展完整呈现了天主教在中国由地下传播、制度化扩展到本土化转型的历史进程。"
-            },
-            {
-              title: "建筑价值",
-              text: "通远坊保存了西北地区规模最大、体系最完整的天主教建筑群，空间格局承袭中国传统院落秩序，结构与装饰以本土营造技术转译西方教堂形制，是内陆地区中西建筑融合与近代教堂本土化的典型实物范例，具有突出的建筑史与技术史价值。"
-            },
-            {
-              title: "社会价值",
-              text: "通远坊不仅是宗教建筑，更是一个延续至今的教民社区核心，长期承担教育、医疗、育婴与慈善职能，形成以信仰为纽带的稳定社会网络，其礼仪、节庆与生活方式体现了宗教与地方文化的深度融合，是研究近代内陆宗教社区与社会变迁的重要活态样本。"
-            }
-          ]
-        }
-      },
-      阅读指引: {
-        howToRead: {
-          title: "本站怎么读",
-          sections: [
-            { title: "历史沿革", text: "通远坊自清初建堂至近代的历史进程，以及其作为西北天主教中心的形成与变迁。" },
-            { title: "建筑", text: "通远坊教堂及相关建筑群的空间格局、建筑形制与中西融合特征。" },
-            { title: "社区口述史", text: "教民亲身经历中的日常生活、信仰实践与动荡年代的集体记忆。" }
-          ]
-        }
-      },
-      基本信息: {
-        location: "通远坊位于陕西省西安市高陵区通远街道一带，现为仍在使用中的天主教堂与教民社区，历史建筑主体得以保存，并持续承载宗教与社区活动。",
-        protection: "通远坊作为西北地区保存较为完整的天主教历史建筑群，于2008年被列为陕西省重点文物保护单位。"
-      }
-    },
-    EN: {
-      项目概览: {
-        what: "Tongyuanfang is a historical religious community centered around a Catholic cathedral located in Gaoling, Xi'an, Shaanxi, established in 1711. From the mid-19th century, it became the highest administrative and missionary center of the Catholic Shaanxi Apostolic Vicariate and the entire Northwest China, known as the 'Shaanxi General Church'.",
-        whyImportant: {
-          title: "Why Important",
-          values: [
-            {
-              title: "Historical Value",
-              text: "Tongyuanfang represents the earliest and longest-standing Catholic missionary and administrative center in Northwest China."
-            },
-            {
-              title: "Architectural Value",
-              text: "Tongyuanfang preserves the largest and most complete Catholic architectural complex in Northwest China."
-            },
-            {
-              title: "Social Value",
-              text: "Tongyuanfang is not just a religious building but a core of a continuing Christian community."
-            }
-          ]
-        }
-      },
-      阅读指引: {
-        howToRead: {
-          title: "How to Read This Site",
-          sections: [
-            { title: "Historical Evolution", text: "The historical process of Tongyuanfang from the early Qing Dynasty to modern times." },
-            { title: "Architecture", text: "The spatial layout, architectural forms and Sino-Western fusion features of Tongyuanfang church and related buildings." },
-            { title: "Community Oral History", text: "Daily life, faith practices and collective memories in the experience of believers." }
-          ]
-        }
-      },
-      基本信息: {
-        location: "Tongyuanfang is located in Tongyuan Street, Gaoling District, Xi'an City, Shaanxi Province, and remains an active Catholic church and Christian community.",
-        protection: "Tongyuanfang was listed as a Shaanxi Provincial Key Cultural Relics Protection Unit in 2008."
-      }
-    }
-  };
-
-  const handleReadBook = () => {
-    const pdfPath = getPdfPath(language);
-    window.open(pdfPath, '_blank');
-  };
-
   const renderOverviewContent = () => {
     const content = overviewContent[language];
-    
+
     return (
       <div className="overview-content">
         <div className="ebook-button-container">
-          <button className="ebook-button" onClick={handleReadBook}>
-            <BreathingAnimation>
-              <img src={assetsConfig.icons.book} alt="Book" className="ebook-icon" />
-            </BreathingAnimation>
-            <span className="ebook-text">{language === 'CN' ? '阅读电子书' : 'Reading Book'}</span>
-          </button>
+          <a
+            href={getOverviewPdfPath(language)}
+            target="_blank"
+            rel="noreferrer"
+            className="ebook-button"
+          >
+            <span className="ebook-marker" aria-hidden="true">PDF</span>
+            <span className="ebook-text">{siteCopy[language].readOverview}</span>
+            <span className="ebook-meta">{language === 'CN' ? 'PDF · 新标签页打开' : 'PDF · Opens in a new tab'}</span>
+          </a>
         </div>
 
         <section className="overview-section">
-          <h3 className="section-title">{language === 'CN' ? '概览' : 'Overview'}</h3>
-          
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '通远坊是什么' : 'What is Tongyuanfang'}</h4>
-            <p className="subsection-text">{content.项目概览.what}</p>
-          </div>
+          <p className="section-kicker">{language === 'CN' ? '项目概览' : 'PROJECT OVERVIEW'}</p>
+          <h3 className="section-title">{language === 'CN' ? '通远坊是什么' : 'What is Tongyuan Ward?'}</h3>
+          <p className="subsection-text overview-lead">{content.what}</p>
 
           <div className="subsection">
-            <h4 className="subsection-title">{content.项目概览.whyImportant.title}</h4>
+            <h4 className="subsection-title">{content.whyImportant.title}</h4>
             <div className="value-list">
-              {content.项目概览.whyImportant.values.map((value, index) => (
-                <div key={index} className="value-item">
+              {content.whyImportant.values.map((value) => (
+                <article key={value.title} className="value-item">
                   <h5 className="value-title">{value.title}</h5>
                   <p className="value-text">{value.text}</p>
-                </div>
+                </article>
               ))}
             </div>
           </div>
         </section>
 
         <section className="overview-section">
-          <h3 className="section-title">{language === 'CN' ? '阅读指引' : 'Reading Guide'}</h3>
-          
-          <div className="subsection">
-            <h4 className="subsection-title">{content.阅读指引.howToRead.title}</h4>
-            <div className="section-list">
-              {content.阅读指引.howToRead.sections.map((section, index) => (
-                <div key={index} className="section-item">
-                  <span className="section-number">{index + 1}.</span>
-                  <div>
-                    <strong className="section-name">{section.title}</strong>
-                    <span className="section-desc">：{section.text}</span>
-                  </div>
+          <h3 className="section-title">{content.readingGuide.title}</h3>
+          <div className="section-list">
+            {content.readingGuide.sections.map((section, index) => (
+              <article key={section.title} className="section-item">
+                <span className="section-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h4 className="section-name">{section.title}</h4>
+                  <p className="section-desc">{section.text}</p>
                 </div>
-              ))}
-            </div>
+              </article>
+            ))}
           </div>
         </section>
 
         <section className="overview-section">
           <h3 className="section-title">{language === 'CN' ? '基本信息' : 'Basic Information'}</h3>
-          
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '地理位置/现状' : 'Location/Status'}</h4>
-            <p className="subsection-text">{content.基本信息.location}</p>
-          </div>
-
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '文保信息' : 'Protection Status'}</h4>
-            <p className="subsection-text">{content.基本信息.protection}</p>
+          <div className="basic-info-grid">
+            <article className="subsection">
+              <h4 className="subsection-title">{language === 'CN' ? '地理位置 / 现状' : 'Location / Status'}</h4>
+              <p className="subsection-text">{content.basicInfo.location}</p>
+            </article>
+            <article className="subsection">
+              <h4 className="subsection-title">{language === 'CN' ? '文保信息' : 'Protection Status'}</h4>
+              <p className="subsection-text">{content.basicInfo.protection}</p>
+            </article>
           </div>
         </section>
       </div>
@@ -355,7 +319,7 @@ export const Detail: React.FC = () => {
   };
 
   // 建筑类别专用内容数据（4个分类）
-  const architectureContent: Record<'CN' | 'EN', Record<TabType, any>> = {
+  const architectureContent = {
     CN: {
       overview: {
         // 类别一：建筑群概览
@@ -399,7 +363,7 @@ export const Detail: React.FC = () => {
           },
           timeline: {
             title: "年代线索",
-            text: "其最初形态可追溯至1711年方启升购地建堂；19世纪中叶冯尚任确立通远坊为总堂后持续使用；1875年在高一志与林奇爱时期扩建为规模宏大的砖木结构大教堂，形成可容纳约2000人礼拜的主体格局；1900年前后虽经历破坏，但在辛丑条约后得以修复并延续至今，成为通远坊历史连续性的关键见证。"
+            text: "其最初形态可追溯至1716年方启升购地建堂；19世纪中叶冯尚任确立通远坊为总堂后持续使用；1875年在高一志与林奇爱时期扩建为规模宏大的砖木结构大教堂，形成可容纳约2000人礼拜的主体格局；1900年前后虽经历破坏，但在辛丑条约后得以修复并延续至今，成为通远坊历史连续性的关键见证。"
           }
         },
         seminary: {
@@ -449,50 +413,6 @@ export const Detail: React.FC = () => {
         }
       },
       figures: {
-        // 类别三：建筑形态与阶段变化（映射到 figures 标签页）
-        expansion: {
-          title: "扩张与\"堡垒化\"（城垣/防御性等线索）",
-          sections: [
-            {
-              title: "一、扩张过程：从传教点到\"东方小罗马\"",
-              stages: [
-                {
-                  period: "1. 初创阶段（1711年）",
-                  text: "意大利主教方启升建立最初圣堂，为地方性传教据点，后因\"礼仪之争\"被毁。"
-                },
-                {
-                  period: "2. 权力中心确立（1844–1848年）",
-                  text: "禁教结束后，冯尚仁重建圣方济各主教座堂，规模宏大，成为陕西代牧区主教驻地，标志着通远坊成为西北天主教行政中心。"
-                },
-                {
-                  period: "3. 功能扩张（1849年起）",
-                  text: "高一志新建主教府与神哲学院，培养本土神职人员，推动信仰内化与社区教育。"
-                },
-                {
-                  period: "4. 社会服务与设施完善（1862–1878年）",
-                  text: "同治年间回民暴乱，教会因与回民关系良好吸引大量灾民，影响力扩大。光绪四年（1878年）陕西大旱，高一志与林奇爱以工代赈修建城墙，并陆续兴建修女院、育婴堂、医院、学校等，形成功能齐全的教会社区。"
-                },
-                {
-                  period: "5. 全盛时期（19世纪末）",
-                  text: "林奇爱邀请欧洲修女来华，新建修女院，并设立邮政所、气象站、地震站、发电站等设施，通远坊被誉为\"东方小罗马\"，面积达426亩，房屋1600间。"
-                }
-              ]
-            },
-            {
-              title: "二、城垣修筑与\"堡垒化\"的成形",
-              stages: [
-                {
-                  period: "1. 同治—光绪年间的社会危机",
-                  text: "1862年回民起义、1878年关中大旱，是通远坊空间形态发生质变的直接诱因。战乱使通远坊成为\"避难岛\"，大量非教民依附教会；饥荒时期教会通过赈灾与\"以工代赈\"掌握了人力与组织资源。在这一背景下，修筑城垣不再只是象征性围界，而成为现实防御设施。"
-                },
-                {
-                  period: "2. 城垣的防御与象征双重功能",
-                  text: "资料明确记载，通远坊在19世纪后期四周筑有高大城墙，并由不同主教分段修筑：城墙限定了教区的清晰边界，区分\"教内\"与\"教外\"；形成可控制出入口的半军事化空间；在心理层面强化了\"安全区\"\"庇护所\"的集体认知。至19世纪末，\"教堂高耸、城垣环绕\"的格局已经稳定，被称为\"东方小罗马\"。"
-                }
-              ]
-            }
-          ]
-        },
         reconstruction: {
           title: "重建后的细部变化",
           changes: [
@@ -611,7 +531,7 @@ export const Detail: React.FC = () => {
           title: "Main Cathedral: Overview/Function/Timeline/Gallery",
           overview: { title: "Overview", text: "The main cathedral is the core and symbolic building of the entire complex." },
           function: { title: "Function", text: "The cathedral hosts Mass, sacraments, bishop ceremonies, and major religious activities." },
-          timeline: { title: "Timeline", text: "Its initial form can be traced back to 1711 when Fang Qisheng purchased land and built the church." }
+          timeline: { title: "Timeline", text: "Its initial form can be traced back to 1716 when Fang Qisheng purchased land and built the church." }
         },
         seminary: {
           title: "Minor Seminary: Same as above",
@@ -633,28 +553,6 @@ export const Detail: React.FC = () => {
         }
       },
       figures: {
-        expansion: {
-          title: "Expansion and 'Fortification'",
-          sections: [
-            {
-              title: "I. Expansion Process: From Mission Point to 'Little Rome of the East'",
-              stages: [
-                { period: "1. Initial Stage (1711)", text: "Italian Bishop Fang Qisheng established the initial church as a local mission base." },
-                { period: "2. Power Center Establishment (1844–1848)", text: "After the ban ended, Feng Shangren rebuilt St. Francis Cathedral on a grand scale." },
-                { period: "3. Functional Expansion (from 1849)", text: "Gao Yizhi built the bishop's residence and theological seminary." },
-                { period: "4. Social Services and Facility Completion (1862–1878)", text: "During the Hui Rebellion and the great drought, the church attracted many refugees." },
-                { period: "5. Peak Period (late 19th century)", text: "Lin Qi'ai invited European nuns to China, and Tongyuanfang was known as 'Little Rome of the East'." }
-              ]
-            },
-            {
-              title: "II. City Wall Construction and the Formation of 'Fortification'",
-              stages: [
-                { period: "1. Social Crises in Tongzhi-Guangxu Period", text: "The Hui Rebellion in 1862 and the great drought in 1878 were direct causes of qualitative changes in Tongyuanfang's spatial form." },
-                { period: "2. Dual Function of City Walls: Defense and Symbolism", text: "Records clearly document that Tongyuanfang built high city walls in the late 19th century." }
-              ]
-            }
-          ]
-        },
         reconstruction: {
           title: "Detail Changes After Reconstruction",
           changes: [
@@ -752,128 +650,35 @@ export const Detail: React.FC = () => {
     }
   };
 
-  // 四个标签页的完整内容数据
-  const tabContentData: Record<'CN' | 'EN', Record<TabType, any>> = {
+  const historyElementsContent = {
     CN: {
-      overview: {
-        stages: [
-          { period: "1711–1845", text: "通远坊在清廷禁教背景下隐秘起步并逐步扎根，最终在政策松动中被确立为陕西教区的区域性行政核心。" },
-          { period: "1845–1901", text: "通远坊依托社会危机实现快速扩张，通过营建与堡垒化发展，形成集宗教、行政与防御于一体的西北天主教中心。" },
-          { period: "1902–1932", text: "在外部环境趋缓的同时，教会内部教权纷争加剧，通远坊维持多功能运作并最终失去总堂行政地位。" },
-          { period: "1933–1952", text: "通远坊进入功能性会院阶段，在民族主义高涨与政治变革中完成由外籍主导向本土教会的历史转型。" }
-        ]
+      administrative: {
+        title: '宗教行政地位变化',
+        text: '通远坊始建于1711年，最初只是清代禁教背景下的地方性传教据点；1845年冯尚任被正式任命为陕西主教后，通远坊被确立为陕西乃至西北地区的天主教总堂，成为直接隶属罗马教廷的区域性宗教行政中枢；1900年后虽在战乱与重建中继续维持核心地位，但教权纷争与区域格局变化逐渐削弱其行政优势；1932年总堂正式迁至西安南堂，通远坊由最高行政中心转为三原教区下属的功能性会院，至1952年完成由外籍主导向本土管理的最终转型。',
       },
-      events: {
-        stageEvents: {
-          title: "每阶段关键事件",
-          events: [
-            "1711 购地建堂",
-            "禁教时期的隐秘存续",
-            "1844 政策松动",
-            "1845 确立总堂、创办男修道院"
-          ]
-        },
-        special: {
-          title: "重要转折专题：1900毁灭—辛丑条约后重建",
-          text: "1900年前后，受义和团运动与反教浪潮影响，通远坊教堂及附属建筑遭到严重破坏，宗教活动一度中断。1901年《辛丑条约》签订后，清政府承认并保护教会财产，通远坊得以依托赔款与政策支持展开系统性重建。重建不仅恢复原有宗教功能，还通过扩建主教堂、主教府及修院，并修筑围墙，形成更具防御性的堡垒化格局，使通远坊在物质形态与教务地位上达到鼎盛，同时也加剧了其与地方社会之间的紧张关系。"
-        },
-        transfer: {
-          title: "行政中心转移节点：1932总堂移至西安南堂",
-          text: "1932年，在教权纷争加剧、交通与城市重心转移的背景下，梵蒂冈重新划分关中教区，将西北天主教总堂由通远坊迁至西安南堂，标志其区域性行政中心地位的终结。此后通远坊转为以修院、慈善与地方牧灵为主的功能性会院，完成由教务中枢向地方宗教社区核心的转型。"
-        }
+      architecture: {
+        title: '建筑形态演变',
+        text: '通远坊早期（18世纪—19世纪中叶）建筑形态以低调隐蔽为特征，主要为砖木结构的小型教堂与居住性建筑，顺应禁教环境，外观接近普通乡村聚落；1845年成为西北总堂后，建筑迅速扩展，主教堂、修院、修女院、育婴堂等相继兴建，形成以城垣环绕的封闭式组群，兼具宗教、行政与防御功能；20世纪初在维持总体格局的同时，内部功能趋于多元化，部分建筑引入西式空间与设施；1932年行政中心转移后，新建活动基本停止，建筑群逐步转向修道、慈善与公共使用，其形态以既有格局的延续与改造为主，成为今天所见的历史建筑形态。',
       },
-      figures: {
-        stage1: [
-          { name: "方启升（1711年建堂；陕晋代牧主教）", text: "在清廷禁教背景下于通远购地建堂并长期坚持牧灵，使通远坊成为西北教区地下存续的核心据点。" },
-          { name: "冯尚任（1845–1848，陕西教区首任主教）", text: "完成陕西教区行政独立，战略性选定通远坊为总堂并创办男修道院，奠定其西北总堂地位与本土化方向。" }
-        ],
-        stage2: [
-          { name: "高一志（1849–1884，陕西主教）", text: "利用回民起义与大饥荒，通过赈灾、以工代赈和扩建教堂与城墙，推动通远坊快速扩张并完成堡垒化。" },
-          { name: "林奇爱（1887–1901，陕西主教）", text: "完善主教府、城垣和慈善医疗体系，引入修女会，使通远坊发展为功能齐全、影响力达顶峰的\"东方小罗马\"。" }
-        ],
-        stage3: [
-          { name: "希贤（1916–1928，陕西主教）", text: "在军阀混战中维系通远坊的社会庇护功能，并创建中国修女会，推动教会组织的初步本土化。" },
-          { name: "戴夏德（1928–1932，陕西主教）", text: "引入发电机、无线电台和气象台，将通远坊塑造为西北科技与教育传播的重要节点，并为总堂迁移作准备。" }
-        ],
-        stage4: [
-          { name: "班锡宜（1933–1952，三原监牧主教）", text: "在民族主义高涨与政治变革中执掌教区，其统治引发中外矛盾，最终以外籍神职人员被驱逐、教会全面本土化告终。" }
-        ]
+      social: {
+        title: '社会环境冲击',
+        text: '通远坊三百余年的历史，始终处于中国社会剧烈变迁的冲击之下：它在清廷禁教的压抑中秘密萌芽，凭借不平等条约特权获得扩张机遇，更将回民起义、军阀混战中的暴力动荡转化为提供庇护、吸引信众的“安全岛”；它通过赈济特大饥荒吸纳了大量为求生计而“吃教”的民众，却也因此埋下社会矛盾；进入20世纪，它遭遇了民族主义觉醒带来的内外权力冲突，并在抗日战争中履行人道救援；新中国成立后，它经历了政治运动的压抑与建筑损毁，最终在当代工业化与城市化的包围中，面临传统信仰社区结构解体的新挑战。贯穿始终，通远坊的历史是一部在政治高压、社会失序、经济崩溃与文化冲突的夹缝中，不断将外部危机转化为内部生存与发展动力的适应性生存史。',
       },
-      elements: {
-        administrative: {
-          title: "宗教行政地位变化",
-          text: "通远坊始建于1711年，最初只是清代禁教背景下的地方性传教据点；1845年冯尚任被正式任命为陕西主教后，通远坊被确立为陕西乃至西北地区的天主教总堂，成为直接隶属罗马教廷的区域性宗教行政中枢；1900年后虽在战乱与重建中继续维持核心地位，但教权纷争与区域格局变化逐渐削弱其行政优势；1932年总堂正式迁至西安南堂，通远坊由最高行政中心转为三原教区下属的功能性会院，至1952年完成由外籍主导向本土管理的最终转型。"
-        },
-        architecture: {
-          title: "建筑形态演变",
-          text: "通远坊早期（18世纪—19世纪中叶）建筑形态以低调隐蔽为特征，主要为砖木结构的小型教堂与居住性建筑，顺应禁教环境，外观接近普通乡村聚落；1845年成为西北总堂后，建筑迅速扩展，主教堂、修院、修女院、育婴堂等相继兴建，形成以城垣环绕的封闭式组群，兼具宗教、行政与防御功能；20世纪初在维持总体格局的同时，内部功能趋于多元化，部分建筑引入西式空间与设施；1932年行政中心转移后，新建活动基本停止，建筑群逐步转向修道、慈善与公共使用，其形态以既有格局的延续与改造为主，成为今天所见的历史建筑形态。"
-        },
-        social: {
-          title: "社会环境冲击",
-          text: "通远坊三百余年的历史，始终处于中国社会剧烈变迁的冲击之下：它在清廷禁教的压抑中秘密萌芽，凭借不平等条约特权获得扩张机遇，更将回民起义、军阀混战中的暴力动荡转化为提供庇护、吸引信众的\"安全岛\"；它通过赈济特大饥荒吸纳了大量为求生计而\"吃教\"的民众，却也因此埋下社会矛盾；进入20世纪，它遭遇了民族主义觉醒带来的内外权力冲突，并在抗日战争中履行人道救援；新中国成立后，它经历了政治运动的压抑与建筑损毁，最终在当代工业化与城市化的包围中，面临传统信仰社区结构解体的新挑战。贯穿始终，通远坊的历史是一部在政治高压、社会失序、经济崩溃与文化冲突的夹缝中，不断将外部危机转化为内部生存与发展动力的适应性生存史。"
-        }
-      }
     },
     EN: {
-      overview: {
-        stages: [
-          { period: "1711–1845", text: "Tongyuanfang started secretly and gradually rooted under the Qing Dynasty's ban on Christianity, eventually established as the regional administrative core of Shaanxi Diocese as policies relaxed." },
-          { period: "1845–1901", text: "Tongyuanfang achieved rapid expansion through social crises, developing into a Northwestern Catholic center integrating religion, administration and defense through construction and fortification." },
-          { period: "1902–1932", text: "While external conditions eased, internal church conflicts intensified, and Tongyuanfang maintained multi-functional operations but eventually lost its status as the general church administrative center." },
-          { period: "1933–1952", text: "Tongyuanfang entered a functional monastery stage, completing the historical transformation from foreign-led to local church amidst rising nationalism and political changes." }
-        ]
+      administrative: {
+        title: 'Religious Administrative Status Changes',
+        text: `Tongyuanfang was founded in 1711, initially just a local missionary base under the Qing Dynasty's ban on Christianity. After Feng Shangren was officially appointed Bishop of Shaanxi in 1845, Tongyuanfang was established as the Catholic General Church of Shaanxi and Northwest China, becoming a regional religious administrative center directly subordinate to the Holy See.`,
       },
-      events: {
-        stageEvents: {
-          title: "Key Events by Stage",
-          events: [
-            "1711 Land purchase and church construction",
-            "Secret survival during the ban on Christianity",
-            "1844 Policy relaxation",
-            "1845 Established as general church, founded male seminary"
-          ]
-        },
-        special: {
-          title: "Key Turning Point: 1900 Destruction and Post-Boxer Protocol Reconstruction",
-          text: "Around 1900, affected by the Boxer Rebellion and anti-Christian movements, Tongyuanfang's church and affiliated buildings were severely damaged, and religious activities were interrupted. After the Boxer Protocol was signed in 1901, the Qing government recognized and protected church property, allowing Tongyuanfang to carry out systematic reconstruction with indemnity funds and policy support."
-        },
-        transfer: {
-          title: "Administrative Center Transfer: 1932 General Church Moved to Xi'an South Church",
-          text: "In 1932, amidst intensified church conflicts and shifts in transportation and urban centers, the Vatican reorganized the Guanzhong Diocese, moving the Northwestern Catholic General Church from Tongyuanfang to Xi'an South Church, marking the end of its regional administrative center status."
-        }
+      architecture: {
+        title: 'Architectural Form Evolution',
+        text: `Tongyuanfang's early architecture (18th century to mid-19th century) was characterized by low-profile concealment, mainly small brick-wood churches and residential buildings, conforming to the ban environment and appearing similar to ordinary rural settlements.`,
       },
-      figures: {
-        stage1: [
-          { name: "Fang Qisheng (Church founder in 1711; Shaanxi-Shanxi Apostolic Vicar)", text: "Purchased land and built the church in Tongyuan under the Qing Dynasty's ban on Christianity, making Tongyuanfang a core base for the underground survival of Northwestern Diocese." },
-          { name: "Feng Shangren (1845–1848, First Bishop of Shaanxi Diocese)", text: "Completed the administrative independence of Shaanxi Diocese, strategically selected Tongyuanfang as the general church and founded the male seminary, establishing its status as Northwestern General Church and direction toward localization." }
-        ],
-        stage2: [
-          { name: "Gao Yizhi (1849–1884, Bishop of Shaanxi)", text: "Utilized the Hui Rebellion and great famine, promoting rapid expansion and fortification of Tongyuanfang through disaster relief, work-for-relief, and expansion of church and city walls." },
-          { name: "Lin Qi'ai (1887–1901, Bishop of Shaanxi)", text: "Perfected the bishop's residence, city walls and charitable medical system, introduced women's religious orders, developing Tongyuanfang into a fully functional \"Little Rome of the East\" with peak influence." }
-        ],
-        stage3: [
-          { name: "Xi Xian (1916–1928, Bishop of Shaanxi)", text: "Maintained Tongyuanfang's social shelter function during warlord conflicts, and created Chinese women's religious orders, promoting the initial localization of church organization." },
-          { name: "Dai Xiade (1928–1932, Bishop of Shaanxi)", text: "Introduced generators, wireless radio and weather stations, shaping Tongyuanfang as an important node for Northwestern technology and education dissemination, and preparing for the general church transfer." }
-        ],
-        stage4: [
-          { name: "Ban Xiyi (1933–1952, Apostolic Prefect of Sanyuan)", text: "Led the diocese amidst rising nationalism and political changes, his rule triggered Sino-foreign conflicts, ultimately ending with the expulsion of foreign clergy and complete localization of the church." }
-        ]
+      social: {
+        title: 'Social Environment Impact',
+        text: `Tongyuanfang's three-hundred-year history has always been under the impact of China's dramatic social changes: it secretly sprouted under the Qing Dynasty's ban on Christianity, gained expansion opportunities through unequal treaty privileges, and transformed violent turmoil from the Hui Rebellion and warlord conflicts into a "safe haven" providing shelter and attracting believers.`,
       },
-      elements: {
-        administrative: {
-          title: "Religious Administrative Status Changes",
-          text: "Tongyuanfang was founded in 1711, initially just a local missionary base under the Qing Dynasty's ban on Christianity. After Feng Shangren was officially appointed Bishop of Shaanxi in 1845, Tongyuanfang was established as the Catholic General Church of Shaanxi and Northwest China, becoming a regional religious administrative center directly subordinate to the Holy See."
-        },
-        architecture: {
-          title: "Architectural Form Evolution",
-          text: "Tongyuanfang's early architecture (18th century to mid-19th century) was characterized by low-profile concealment, mainly small brick-wood churches and residential buildings, conforming to the ban environment and appearing similar to ordinary rural settlements."
-        },
-        social: {
-          title: "Social Environment Impact",
-          text: "Tongyuanfang's three-hundred-year history has always been under the impact of China's dramatic social changes: it secretly sprouted under the Qing Dynasty's ban on Christianity, gained expansion opportunities through unequal treaty privileges, and transformed violent turmoil from the Hui Rebellion and warlord conflicts into a \"safe haven\" providing shelter and attracting believers."
-        }
-      }
-    }
+    },
   };
 
   const renderTabContent = () => {
@@ -881,11 +686,11 @@ export const Detail: React.FC = () => {
     if (category === 'overview') {
       return renderOverviewContent();
     }
-    
+
     // Architecture 页面显示建筑专用内容
     if (category === 'architecture') {
       const archContent = architectureContent[language];
-      
+
       if (activeTab === 'overview') {
         // 类别一：建筑群概览
         return (
@@ -897,8 +702,8 @@ export const Detail: React.FC = () => {
             <div className="subsection">
               <h4 className="subsection-title">{archContent.overview.fourBuildings.title}</h4>
               <div className="value-list">
-                {archContent.overview.fourBuildings.buildings.map((building: any, index: number) => (
-                  <div key={index} className="value-item">
+                {archContent.overview.fourBuildings.buildings.map((building) => (
+                  <div key={building.title} className="value-item">
                     <h5 className="value-title">{building.title}</h5>
                     <p className="value-text">{building.text}</p>
                   </div>
@@ -908,7 +713,7 @@ export const Detail: React.FC = () => {
           </div>
         );
       }
-      
+
       if (activeTab === 'events') {
         // 类别二：单体建筑详情
         const eventsContent = archContent.events;
@@ -973,30 +778,25 @@ export const Detail: React.FC = () => {
           </div>
         );
       }
-      
+
       if (activeTab === 'figures') {
         // 类别三：建筑形态与阶段变化
         const figuresContent = archContent.figures;
         return (
           <div className="figures-content">
-            <div className="subsection">
-              <h4 className="subsection-title">{figuresContent.expansion.title}</h4>
-              {figuresContent.expansion.sections.map((section: any, index: number) => (
-                <div key={index} className="subsection">
-                  <h5 className="subsection-title">{section.title}</h5>
-                  {section.stages && section.stages.map((stage: any, stageIndex: number) => (
-                    <div key={stageIndex} className="stage-item">
-                      <h6 className="stage-period">{stage.period}</h6>
-                      <p className="stage-text">{stage.text}</p>
-                    </div>
-                  ))}
-                </div>
+            <div className="archive-timeline architecture-stage-list">
+              {architectureStages[language].map((stage) => (
+                <article key={stage.code} className="archive-stage-card">
+                  <p className="archive-stage-period">{stage.code} · {stage.period}</p>
+                  <h3 className="archive-stage-feature">{stage.title}</h3>
+                  <p className="archive-stage-details">{stage.text}</p>
+                </article>
               ))}
             </div>
             <div className="subsection">
               <h4 className="subsection-title">{figuresContent.reconstruction.title}</h4>
-              {figuresContent.reconstruction.changes.map((change: any, index: number) => (
-                <div key={index} className="subsection">
+              {figuresContent.reconstruction.changes.map((change) => (
+                <div key={change.title} className="subsection">
                   <h5 className="subsection-title">{change.title}</h5>
                   <p className="subsection-text">{change.text}</p>
                 </div>
@@ -1009,7 +809,7 @@ export const Detail: React.FC = () => {
           </div>
         );
       }
-      
+
       if (activeTab === 'elements') {
         // 类别四：营造技艺
         const elementsContent = archContent.elements;
@@ -1017,8 +817,8 @@ export const Detail: React.FC = () => {
           <div className="elements-content">
             <div className="subsection">
               <h4 className="subsection-title">{elementsContent.timberStructure.title}</h4>
-              {elementsContent.timberStructure.sections.map((section: any, index: number) => (
-                <div key={index} className="subsection">
+              {elementsContent.timberStructure.sections.map((section) => (
+                <div key={section.title} className="subsection">
                   <h5 className="subsection-title">{section.title}</h5>
                   <p className="subsection-text">{section.text}</p>
                 </div>
@@ -1028,8 +828,8 @@ export const Detail: React.FC = () => {
               <h4 className="subsection-title">{elementsContent.archStructure.title}</h4>
               <div className="subsection">
                 <h5 className="subsection-title">{elementsContent.archStructure.arches.title}</h5>
-                {elementsContent.archStructure.arches.sections.map((section: any, index: number) => (
-                  <div key={index} className="subsection">
+                {elementsContent.archStructure.arches.sections.map((section) => (
+                  <div key={section.title} className="subsection">
                     <h6 className="subsection-title">{section.title}</h6>
                     <p className="subsection-text">{section.text}</p>
                   </div>
@@ -1037,8 +837,8 @@ export const Detail: React.FC = () => {
               </div>
               <div className="subsection">
                 <h5 className="subsection-title">{elementsContent.archStructure.vaults.title}</h5>
-                {elementsContent.archStructure.vaults.sections.map((section: any, index: number) => (
-                  <div key={index} className="subsection">
+                {elementsContent.archStructure.vaults.sections.map((section) => (
+                  <div key={section.title} className="subsection">
                     <h6 className="subsection-title">{section.title}</h6>
                     <p className="subsection-text">{section.text}</p>
                   </div>
@@ -1052,250 +852,153 @@ export const Detail: React.FC = () => {
           </div>
         );
       }
-      
+
       return null;
     }
-    
+
     // Voices 页面显示口述史内容（无标签页）
     if (category === 'voices') {
       const voicesData = voicesContent[language];
-      
-      const handlePlayPause = (index: number) => {
-        const currentAudioPath = voicesData.stories[index].audio;
-        let audio = audioRefs.current[index];
-        const storedLanguage = audioLanguageRefs.current[index];
-        
-        // 如果audio不存在，或者存储的语言与当前语言不匹配，重新创建
-        if (!audio || storedLanguage !== language) {
-          // 先停止并清理旧的audio（如果存在）
-          if (audio) {
-            audio.pause();
-            audio.currentTime = 0;
-          }
-          
-          // 创建新的audio对象
-          audio = new Audio(currentAudioPath);
-          audioRefs.current[index] = audio;
-          audioLanguageRefs.current[index] = language;
-          
-          audio.addEventListener('ended', () => {
-            setPlayingIndex(null);
-          });
-          
-          audio.addEventListener('error', () => {
-            setPlayingIndex(null);
-            console.error('Audio playback failed');
-          });
-        }
-        
-        // 停止所有正在播放的音频（包括当前index的音频，如果正在播放）
-        audioRefs.current.forEach((ref, i) => {
-          if (ref && !ref.paused) {
-            ref.pause();
-            ref.currentTime = 0;
-          }
-        });
-        
-        // 如果当前点击的是正在播放的音频，则暂停
-        if (playingIndex === index && !audio.paused) {
-          audio.pause();
-          setPlayingIndex(null);
-        } else {
-          // 播放当前音频
-          audio.play();
-          setPlayingIndex(index);
-        }
-      };
-      
       return (
-        <div className="voices-content">
-          <div className="subsection">
-            <h4 className="subsection-title">{voicesData.title}</h4>
-            {voicesData.stories.map((story, index) => (
-              <div key={index} className="voice-story-item">
-                <div className="voice-story-content">
-                  <p className="voice-story-text">{story.content}</p>
-                </div>
-                <button 
-                  className="voice-play-button"
-                  onClick={() => handlePlayPause(index)}
-                >
-                  <img 
-                    src={playingIndex === index ? assetsConfig.voices.playing : assetsConfig.voices.muted}
-                    alt={playingIndex === index ? 'Playing' : 'Muted'}
-                    className="voice-play-icon"
-                  />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <VoicesPanel
+          key={language}
+          language={language}
+          title={voicesData.title}
+          stories={voicesData.stories}
+        />
       );
     }
-    
-    // History 页面显示四个标签（使用通用的 tabContentData）
+
     if (activeTab === 'overview') {
-      const content = tabContentData[language].overview;
       return (
-        <div className="overview-content">
-          <div className="stages-list">
-            {content.stages.map((stage, index) => (
-              <div key={index} className="stage-item">
-                <h4 className="stage-period">{stage.period}</h4>
-                <p className="stage-text">{stage.text}</p>
-              </div>
-            ))}
-          </div>
+        <div className="archive-timeline">
+          {historyStages[language].map((stage) => (
+            <article key={stage.period} className="archive-stage-card">
+              <p className="archive-stage-period">{stage.period}</p>
+              <h3 className="archive-stage-feature">{stage.feature}</h3>
+              <p className="archive-stage-details">{stage.details}</p>
+            </article>
+          ))}
         </div>
       );
     }
-    
+
     if (activeTab === 'events') {
-      const content = tabContentData[language].events;
       return (
-        <div className="events-content">
-          <div className="subsection">
-            <h4 className="subsection-title">{content.stageEvents.title}</h4>
-            <ul className="events-list">
-              {content.stageEvents.events.map((event, index) => (
-                <li key={index} className="event-item">{index + 1}. {event}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{content.special.title}</h4>
-            <p className="subsection-text">{content.special.text}</p>
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{content.transfer.title}</h4>
-            <p className="subsection-text">{content.transfer.text}</p>
-          </div>
+        <div className="events-content archive-card-list">
+          {historicalEvents[language].map((event) => (
+            <article key={`${event.period ?? ''}-${event.title}`} className="event-card">
+              {event.period && <p className="event-period">{event.period}</p>}
+              <h3 className="event-title">{event.title}</h3>
+              <p className="event-text">{event.text}</p>
+            </article>
+          ))}
         </div>
       );
     }
-    
+
     if (activeTab === 'figures') {
-      const content = tabContentData[language].figures;
       return (
-        <div className="figures-content">
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '第一阶段（1711–1845）' : 'Stage 1 (1711–1845)'}</h4>
-            {content.stage1.map((figure, index) => (
-              <div key={index} className="figure-item">
-                <h5 className="figure-name">{figure.name}</h5>
-                <p className="figure-text">{figure.text}</p>
+        <div className="figures-content archive-card-list">
+          {historicalFigures[language].map((figure) => (
+            <article key={`${figure.name}-${figure.years ?? ''}`} className="figure-card">
+              <div className="figure-heading">
+                <h3 className="figure-name">{figure.name}</h3>
+                {figure.latinName && <p className="figure-latin-name">{figure.latinName}</p>}
               </div>
-            ))}
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '第二阶段（1845–1901）' : 'Stage 2 (1845–1901)'}</h4>
-            {content.stage2.map((figure, index) => (
-              <div key={index} className="figure-item">
-                <h5 className="figure-name">{figure.name}</h5>
-                <p className="figure-text">{figure.text}</p>
-              </div>
-            ))}
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '第三阶段（1902–1932）' : 'Stage 3 (1902–1932)'}</h4>
-            {content.stage3.map((figure, index) => (
-              <div key={index} className="figure-item">
-                <h5 className="figure-name">{figure.name}</h5>
-                <p className="figure-text">{figure.text}</p>
-              </div>
-            ))}
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{language === 'CN' ? '第四阶段（1933–1952）' : 'Stage 4 (1933–1952)'}</h4>
-            {content.stage4.map((figure, index) => (
-              <div key={index} className="figure-item">
-                <h5 className="figure-name">{figure.name}</h5>
-                <p className="figure-text">{figure.text}</p>
-              </div>
-            ))}
-          </div>
+              {figure.years && <p className="figure-years">{figure.years}</p>}
+              <p className="figure-text">{figure.description}</p>
+            </article>
+          ))}
         </div>
       );
     }
-    
+
     if (activeTab === 'elements') {
-      const content = tabContentData[language].elements;
+      const content = historyElementsContent[language];
       return (
-        <div className="elements-content">
-          <div className="subsection">
-            <h4 className="subsection-title">{content.administrative.title}</h4>
-            <p className="subsection-text">{content.administrative.text}</p>
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{content.architecture.title}</h4>
-            <p className="subsection-text">{content.architecture.text}</p>
-          </div>
-          <div className="subsection">
-            <h4 className="subsection-title">{content.social.title}</h4>
-            <p className="subsection-text">{content.social.text}</p>
-          </div>
+        <div className="elements-content archive-card-list">
+          {Object.values(content).map((element) => (
+            <article key={element.title} className="subsection">
+              <h3 className="subsection-title">{element.title}</h3>
+              <p className="subsection-text">{element.text}</p>
+            </article>
+          ))}
         </div>
       );
     }
-    
+
     return null;
   };
 
   return (
     <div className="detail-page">
-      <div className="detail-header">
-        <button className="detail-back-button" onClick={handleBack}>
-          <img src={assetsConfig.icons.back} alt="Back" />
+      <header className="detail-header">
+        <button
+          type="button"
+          className="detail-back-button"
+          onClick={handleBack}
+          aria-label={language === 'CN' ? '返回首页' : 'Back to home'}
+        >
+          <img src={assetsConfig.icons.back} alt="" aria-hidden="true" />
         </button>
-        <h2 className="detail-title">{pageTitle}</h2>
+        <h1 className="detail-title">{pageTitle}</h1>
         <LanguageSwitch />
-      </div>
+      </header>
 
-      <div className="detail-carousel">
-        {category === 'history' ? (
-          <Carousel images={[assetsConfig.detail.historyImage, assetsConfig.detail.otherImage]} />
-        ) : category === 'architecture' ? (
-          <Carousel images={assetsConfig.detail.architectureImages} />
-        ) : (
-          <img 
-            src={
-              category === 'overview' 
-                ? assetsConfig.detail.mainImage 
-                : assetsConfig.detail.otherImage
-            } 
-            alt={category === 'overview' ? 'Church' : 'Detail'} 
-            className="detail-main-image" 
-          />
-        )}
-      </div>
-
-      {category !== 'overview' && category !== 'voices' && (
-        <div className="detail-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              className={`detail-tab ${activeTab === tab ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {labels[tab]}
-            </button>
-          ))}
+      <div className="detail-scroll-content">
+        <div className="detail-carousel">
+          {category === 'overview' ? (
+            <Carousel images={assetsConfig.detail.overviewImages} language={language} />
+          ) : category === 'history' ? (
+            <Carousel images={assetsConfig.detail.historyImages} language={language} />
+          ) : category === 'architecture' ? (
+            <Carousel images={assetsConfig.detail.architectureImages} language={language} />
+          ) : (
+            <img
+              src={assetsConfig.detail.otherImage}
+              alt={language === 'CN' ? '通远坊口述历史资料' : 'Tongyuan Ward oral history archive'}
+              className="detail-main-image"
+            />
+          )}
         </div>
-      )}
 
-      <div className="detail-content">
-        {renderTabContent()}
+        {category !== 'overview' && category !== 'voices' && (
+          <div className="detail-tabs" role="tablist" aria-label={pageTitle}>
+            {tabs.map((tab) => (
+              <button
+                type="button"
+                key={tab}
+                className={`detail-tab ${activeTab === tab ? 'active' : ''}`}
+                onClick={() => setTabSelection({ category, tab })}
+                role="tab"
+                aria-selected={activeTab === tab}
+                aria-controls="detail-tab-panel"
+                aria-label={labels[tab].full}
+                title={labels[tab].full}
+              >
+                {labels[tab].short}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <main
+          id="detail-tab-panel"
+          className="detail-content"
+          role={category !== 'overview' && category !== 'voices' ? 'tabpanel' : undefined}
+        >
+          {renderTabContent()}
+        </main>
       </div>
 
       <div className="detail-actions">
-        <BreathingAnimation>
-          <button className="detail-chat-button" onClick={handleEnterChat}>
-            <img src={assetsConfig.icons.chat} alt="Chat" className="detail-chat-icon" />
-            <span className="detail-chat-text">
-              {language === 'CN' ? '和我聊天' : 'Chat With me'}
-            </span>
-          </button>
-        </BreathingAnimation>
+        <button type="button" className="detail-chat-button" onClick={handleEnterChat}>
+          <img src={assetsConfig.icons.chat} alt="" aria-hidden="true" className="detail-chat-icon" />
+          <span className="detail-chat-text">
+            {siteCopy[language].chatWithMe}
+          </span>
+        </button>
       </div>
     </div>
   );
